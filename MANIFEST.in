@@ -1,0 +1,4 @@
+include docDuplicateManager/res_1.0.zip
+include docDuplicateManager/config.ini
+
+include README.rst

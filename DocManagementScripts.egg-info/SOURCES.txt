@@ -1,0 +1,15 @@
+MANIFEST.in
+README.rst
+DocManagementScripts.egg-info/PKG-INFO
+DocManagementScripts.egg-info/SOURCES.txt
+DocManagementScripts.egg-info/dependency_links.txt
+DocManagementScripts.egg-info/not-zip-safe
+DocManagementScripts.egg-info/requires.txt
+DocManagementScripts.egg-info/top_level.txt
+bin/findDuplicates
+docDuplicateManager/Documentary.py
+docDuplicateManager/GenerateData.py
+docDuplicateManager/HandlerImpl.py
+docDuplicateManager/__init__.py
+docDuplicateManager/config.ini
+docDuplicateManager/res_1.0.zip
