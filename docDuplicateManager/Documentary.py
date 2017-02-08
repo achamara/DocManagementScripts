@@ -10,6 +10,7 @@ Created on 17 Jan 2017
 import os
 import hashlib
 import json
+import sys
 
 
 class Doc:
@@ -20,20 +21,23 @@ class Doc:
     video_ext = ['.mp4', '.avi']
     image_ext = ['.jpg', '.bmp', '.gif', '.png']
     text_ext = ['.txt']
+    
+    reload(sys)  
+    sys.setdefaultencoding('utf8')
 
     def __init__(self, category, name, fqPath, files=[]):
         '''
         Constructor
         '''
-        self.category = category
-        self.name = name
-        self.fqPath = fqPath
+        self.category = unicode(category, errors='ignore')
+        self.name = unicode(name, errors='ignore')
+        self.fqPath = unicode(fqPath, errors='ignore') 
         
         VideoFiles = [ file for file in files if file.endswith((tuple (self.video_ext))) ]
         self.ImageFiles = [ file for file in files if file.endswith((tuple (self.image_ext))) ]
         
         textFileList = [ file for file in files if file.endswith((tuple (self.text_ext))) ]
-        self.description = self.readDescription(textFileList);
+        self.description = unicode(self.readDescription(textFileList) , errors='ignore')
         
         
         formatedFileList = []
@@ -70,13 +74,13 @@ class Doc:
             
             print(file['name'] , file['hash'])
             
-            self.fileHashList.append(file['hash']);
+            
             
             # Check file is duplicate within same directory
             if self.isDuplicate == False and fileHash in self.fileHashList:
                 self.isDuplicate = True
                 
-            
+            self.fileHashList.append(file['hash']);
             
             
     def generateMD5ForFile(self, fqFileName):
@@ -90,6 +94,7 @@ class Doc:
         return (self.name)
     
     def getJSONObject(self):
+
         jsonText = json.dumps({'name': self.name, 'category': self.category, 'description': self.description , 'fq_path': self.fqPath , 'cover_image': self.ImageFiles , 'duplicate_found': self.isDuplicate, 'file_hash' : self.fileHashList , 'files':  [] }) 
     
         jsonObject = json.loads(jsonText)

@@ -3,6 +3,8 @@ from GenerateData  import DocManager
 
 def main():
         
+    print ("Starting DocDulicateManager 1.0")
+    
     docManager = DocManager()
     
     docManager.initConfigData()
@@ -15,6 +17,7 @@ def main():
 
     docManager.startHTTPServer()
 
+    print ("\n Exiting DocDulicateManager 1.0")
         
 if  __name__ == '__main__':
     main()

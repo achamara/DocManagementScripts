@@ -38,11 +38,18 @@ class DocManager:
     documentaryList = []
     config = ConfigParser.ConfigParser()
     
+    ignoreFolderNames = []
+    
+    
+    resZipName='res_1.0.zip'
+    
     # Load the config. setting from the provided file
     def loadConfigSettings(self):
         self.fqPath = self.config.get('Folder_Location', 'doc_location')
         print ("# CONFIG :: Doc Folder to read  = " + self.fqPath)
         
+        self.resZipName = self.config.get('Folder_Location', 'res_zip_name')
+        print ("# CONFIG :: Resource ZIP file name  = " + self.resZipName)
         
         self.docFolderName = os.path.basename(self.fqPath)
         
@@ -68,7 +75,9 @@ class DocManager:
         self.textExt = textExt.split(',')
         print ("# CONFIG :: Text file types = " + textExt)   
     
-    
+        ignoreFolderNames = self.config.get('Ignore_List', 'folder_name')
+        self.ignoreFolderNames = ignoreFolderNames.replace(' ','').split(',')
+        print ("# CONFIG :: Folder names to ignore = " + ignoreFolderNames)   
     
     
     # Check for the config. file is provided as a parameter
@@ -112,7 +121,7 @@ class DocManager:
     
     def extractResourceFile(self):
         mydir = os.path.dirname(os.path.abspath(__file__))
-        zipFilePath = os.path.join(mydir, 'res_1.0.zip')
+        zipFilePath = os.path.join(mydir, self.resZipName)
         #zipFilePath = '/'.join('res_1.0.zip') 
         print (zipFilePath)
         zip_ref = zipfile.ZipFile(zipFilePath, 'r')
@@ -140,6 +149,13 @@ class DocManager:
         self.configureHTTPRequest()
     
     
+    def inIgrnoeList(self, dirName):
+        if dirName in self.ignoreFolderNames:
+            return True;
+        else:
+            return False;
+        
+        
     # iterate the given path and add files to a list.
     def populateDocumentaryList(self):
         
@@ -147,16 +163,17 @@ class DocManager:
         
             relativePath = dirpath.replace(self.fqPath, "")
             
-            if len(relativePath) == 0:
+            if len(relativePath) == 0 :
+                print ("Folder ignored : " + relativePath)
                 continue
             
             pathArray = relativePath.split(os.path.sep)
             
             # length = 2 then main category, length = 3 then corresponding doc.
-            if len(pathArray) == 2 :
+            if len(pathArray) == 2 and not self.inIgrnoeList(pathArray[1]):
                 print ("Category found : " + pathArray[1])
                 self.categoryList.extend(filenames)
-            elif len(pathArray) == 3 :
+            elif len(pathArray) == 3 and not self.inIgrnoeList(pathArray[2]):
                 print ("Doc. found : " + pathArray[2])
                 doc = Doc(pathArray[1], pathArray[2], dirpath , filenames)
                 self.documentaryList.append(doc)
@@ -188,10 +205,13 @@ class DocManager:
     
     # Start local HTTP server
     def startHTTPServer(self):
-        httpd = SocketServer.TCPServer(("", self.port), RequestHandler)
-        print ("Local HTTP server is serving at port : ", self.port)
-        httpd.serve_forever()
-    
+        try:
+            httpd = SocketServer.TCPServer(("", self.port), RequestHandler)
+            print ("Local HTTP server is serving at port : ", self.port)
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\n Shouting Down the HTTP server...")
+            pass
     
 
 
