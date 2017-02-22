@@ -44,7 +44,7 @@ class Doc:
         self.isDuplicate = False
         
         for file in VideoFiles:
-            fileObj = {'name': file, 'hash':''}
+            fileObj = {'name': file, 'hash':'', 'duplicate_in': []}
             formatedFileList.append(fileObj)
             
         self.files = formatedFileList
@@ -66,6 +66,9 @@ class Doc:
         
         
     def generateMD5(self):
+        
+        hashList={}
+        
         for file in self.files:
             fqFilePath = os.path.join(self.fqPath, file['name'])
             print("Generating MD5 for file : ", fqFilePath)
@@ -73,16 +76,18 @@ class Doc:
             file['hash'] = fileHash
             
             print(file['name'] , file['hash'])
-            
-            
+            hashList[file['hash']] = fqFilePath
             
             # Check file is duplicate within same directory
             if self.isDuplicate == False and fileHash in self.fileHashList:
                 self.isDuplicate = True
+                file['duplicate_in'].append({"duplicate_in": fqFilePath})
                 
             self.fileHashList.append(file['hash']);
             
-            
+        return hashList
+    
+        
     def generateMD5ForFile(self, fqFileName):
         hash_md5 = hashlib.md5()
         with open(fqFileName, "rb") as f:

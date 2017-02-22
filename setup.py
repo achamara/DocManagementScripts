@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='DocManagementScripts',
-      version='0.1',
+      version='0.2',
       description='Combination of scripts to manage documentary content.',
       url='https://github.com/compilable/',
       author='achamara',
@@ -27,6 +27,6 @@ sudo pip install -e .
 
 To Execute : 
 
-DocManagementScripts config.ini
+findDuplicates config.ini
 
 '''

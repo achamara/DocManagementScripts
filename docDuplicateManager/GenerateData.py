@@ -20,6 +20,8 @@ from HandlerImpl import RequestHandler
 from Documentary import Doc
 import SocketServer
 
+from CentralDBValidator import DBValidator
+
 class DocManager:
     
     fqPath = ""
@@ -41,7 +43,17 @@ class DocManager:
     ignoreFolderNames = []
     
     
-    resZipName='res_1.0.zip'
+    fileMap = {}
+    
+    
+    resZipName = 'res_1.0.zip'
+    
+    dbValidator = DBValidator ()
+    
+    isWebRequest = True
+    
+    paraMessage = "Please use the below settings to run the Duplicate manager service. \n # --config <configuration file path ending in .ini>  - provide the location of the ini files containig the configuration info. \n # --ser <port address>    - indication to start the web server under the specified port."
+    
     
     # Load the config. setting from the provided file
     def loadConfigSettings(self):
@@ -50,6 +62,7 @@ class DocManager:
         
         self.resZipName = self.config.get('Folder_Location', 'res_zip_name')
         print ("# CONFIG :: Resource ZIP file name  = " + self.resZipName)
+        
         
         self.docFolderName = os.path.basename(self.fqPath)
         
@@ -62,6 +75,14 @@ class DocManager:
         
         self.dbTableName = self.config.get('DB_Details', 'json_db_table_name')
         print ("# CONFIG :: JSON DB table name = " + self.dbTableName)   
+        
+        
+        self.centralDBLocation = self.config.get('DB_Details', 'central_sqllite_db_path')
+        print ("# CONFIG :: Central SQLite DB path  = " + self.centralDBLocation)
+        
+        self.addToCentralDB = self.config.get('DB_Details', 'insert_to_central_db')
+        print ("# CONFIG :: Add new doc's to Central SQLite DB = " + self.addToCentralDB)
+        
         
         videoExt = self.config.get('File_Types', 'video_ext')
         self.videoExt = videoExt.split(',')
@@ -76,23 +97,34 @@ class DocManager:
         print ("# CONFIG :: Text file types = " + textExt)   
     
         ignoreFolderNames = self.config.get('Ignore_List', 'folder_name')
-        self.ignoreFolderNames = ignoreFolderNames.replace(' ','').split(',')
+        self.ignoreFolderNames = ignoreFolderNames.replace(' ', '').split(',')
         print ("# CONFIG :: Folder names to ignore = " + ignoreFolderNames)   
     
     
     # Check for the config. file is provided as a parameter
+    
     def initConfigData(self):
         if len(sys.argv) >= 2:
-            if os.path.isfile(sys.argv[1]):
-                print ("Reading configuration file from : " + sys.argv[1])
-                self.config.readfp(open(sys.argv[1]))
+            if sys.argv[1] == "--config"  and os.path.isfile(sys.argv[2]):
+                print ("Reading configuration file from : " + sys.argv[2])
+                self.config.readfp(open(sys.argv[2]))
+                self.loadConfigSettings()
+                self.isWebRequest = False
+            elif sys.argv[1] == "--ser"  and sys.argv[2].isdigit():
+                print ("Trying to start the web server on port {1} on location : {1} ".format(sys.argv[2], sys.argv[3]))
+                self.isWebRequest = True
+                if not self.configureHTTPRequest(str(sys.argv[3])) is False:
+                    self.startHTTPServer(int(sys.argv[2]))
+            else:
+                print(self.paraMessage)
         else:
-            print("Configuration file path is not provided, exiting!")
+            print(self.paraMessage)
             exit()    
         
-        self.loadConfigSettings()
         
-        
+    def isWebserviceRequest(self):
+        return self.isWebRequest;
+                
     def writeDBPath(self):
         
         resLocation = os.path.join(self.fqPath, self.resLocation)
@@ -106,6 +138,7 @@ class DocManager:
         file.close() 
     
     # init json db.
+    
     def initJSON_DB(self):
         ts = time.time()
         timeStamp = datetime.datetime.fromtimestamp(ts).strftime('%d_%m_%Y %H_%M_%S')
@@ -122,7 +155,7 @@ class DocManager:
     def extractResourceFile(self):
         mydir = os.path.dirname(os.path.abspath(__file__))
         zipFilePath = os.path.join(mydir, self.resZipName)
-        #zipFilePath = '/'.join('res_1.0.zip') 
+        # zipFilePath = '/'.join('res_1.0.zip') 
         print (zipFilePath)
         zip_ref = zipfile.ZipFile(zipFilePath, 'r')
         zip_ref.extractall(self.fqPath)
@@ -130,24 +163,43 @@ class DocManager:
 
 
 
-    def configureHTTPRequest(self):
+    def configureHTTPRequest(self, argPath=None):
+        if argPath is not None:
+            self.fqPath = argPath
         customPath = (
             # [url_prefix ,  directory_path]
             ['/files', self.fqPath],
             ['', self.fqPath]
-            ) 
-        RequestHandler.changeRootFolder(customPath)
+            )
         
-        self.extractResourceFile()
-        self.writeDBPath()
+        if os.path.isdir(self.fqPath):
+            RequestHandler.changeRootFolder(customPath)
+        else:
+            print("Provided folder path is invalid : "+ self.fqPath)
+            return False 
+
+        
+        
+        if argPath is None:
+            self.extractResourceFile()
+            self.writeDBPath()
 
     
     # init method.
     def init(self):
         self.initConfigData()
         self.initJSON_DB()
+        self.initCentralDB()
         self.configureHTTPRequest()
     
+    
+    def initCentralDB(self):
+        
+        self.isCentralDBConfigured = self.dbValidator.validateDBConnection(self.centralDBLocation)
+        
+        if self.isCentralDBConfigured is False:
+            print("# CONFIG :: Central DB connection error, validation will be ignored. ")
+        
     
     def inIgrnoeList(self, dirName):
         if dirName in self.ignoreFolderNames:
@@ -177,34 +229,83 @@ class DocManager:
                 print ("Doc. found : " + pathArray[2])
                 doc = Doc(pathArray[1], pathArray[2], dirpath , filenames)
                 self.documentaryList.append(doc)
+                
+                
                 # print (filenames)
     
     
     # Add files to db.
     def insertToDB(self):
         for doc in self.documentaryList:
-            print(doc.generateMD5())
-            
-            if doc.isDuplicate == False and self.findDuplicatesInDB(doc) == True:
+
+            if doc.isDuplicate == False and self.findDuplicates(doc) == True:
                 doc.isDuplicate = True
                 
             self.table.insert(doc.getJSONObject())
             
+            if(self.centralDBLocation is not None and bool(self.addToCentralDB) is True and doc.isDuplicate is False):
+                print("Inserting the Doc : {0} to central DB.".format(doc.name))
+                self.dbValidator.insertNewDoc(self.centralDBLocation, doc)
+          
+          
+          
+    def findDuplicateDocs(self, doc):
+        return self.dbValidator.findMatchingDoc(self.centralDBLocation, doc)  
+  
             
-    # Find duplicate entries for a file   
-    def findDuplicatesInDB(self, doc):
-        Docu = Query()
+    def findDuplicateFiles(self, doc):
+        return self.dbValidator.findMatchingDocFiles(self.centralDBLocation, doc.fileHashList)   
+    
+    
+    def findDuplicateFilesInCurrentDir(self, doc):
         
-        for file in doc.files:
-            hashCount = self.table.count(Docu.file_hash.any (file['hash']));
+        fileHashMap = doc.generateMD5();
         
-            if hashCount > 0: 
-                return True 
+        print("Folder : {0} , contains {1} files, start duplicate validation..".format(doc.name, len(fileHashMap.keys())))
         
-        return False
+        for hash, fqPath in fileHashMap.items():
+            print("File : {0}, Hash : {1}".format(fqPath, hash))
+            tmpList = []
+             
+            if hash in  list(self.fileMap.keys()):
+                doc.isDuplicate = True
+                tmpList = self.fileMap.get(hash)
+                tmpList.append(fqPath)
+                self.fileMap[hash] = tmpList
+                return True
+             
+            tmpList.append(fqPath)
+            self.fileMap[hash] = tmpList
+            
+        
+            
+    # Find duplicate entries for a file in
+    #  a. Current Archive
+    #  b. Central location
+    def findDuplicates(self, doc):
+        
+        return self.findDuplicateFilesInCurrentDir(doc) or self.findDuplicateDocs(doc)
+        # a. find duplicates in Current Archive
+        
+            
+            
+# b. find duplicates in  Central location
+        
+
+        # Docu = Query()
+        
+        # for file in doc.files:
+            # hashCount = self.table.count(Docu.file_hash.any (file['hash']));
+        
+            # if hashCount > 0: 
+                # return True 
+        
+        # return False
     
     # Start local HTTP server
-    def startHTTPServer(self):
+    def startHTTPServer(self, customPort=None):
+        if customPort is not None:
+            self.port = customPort
         try:
             httpd = SocketServer.TCPServer(("", self.port), RequestHandler)
             print ("Local HTTP server is serving at port : ", self.port)

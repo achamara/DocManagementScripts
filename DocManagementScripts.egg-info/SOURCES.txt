@@ -7,6 +7,7 @@ DocManagementScripts.egg-info/not-zip-safe
 DocManagementScripts.egg-info/requires.txt
 DocManagementScripts.egg-info/top_level.txt
 bin/findDuplicates
+docDuplicateManager/CentralDBValidator.py
 docDuplicateManager/Documentary.py
 docDuplicateManager/GenerateData.py
 docDuplicateManager/HandlerImpl.py
